@@ -1,0 +1,69 @@
+---
+#  - hosts: all
+# - hosts: ic5.example.com
+  - hosts: ic1.example.com, ic2.example.com, ic3.example.com, ic4.example.com, ic5.example.com, ic6.example.com, ic7.example.com, ic8.example.com, ic9.example.com
+    vars:
+      - insights_needs_reboot: false
+      - ssh_conf_bkp: /etc/ssh/sshd_config.backup
+    tasks:
+      - name: 'make system vulnerable to payload injection bug'
+        sysctl: name=net.ipv4.tcp_challenge_ack_limit value=100
+      - name: 'make system vulnerable to memory corruption or local privilege escalation'
+        sysctl: name=vm.legacy_va_layout value=1
+      - name: 'remove n_hdlc CVE 2017 2636 fix'
+        shell: /bin/rm -f /etc/modprobe.d/disable-n_hdlc.conf
+      - name: 'Disable vm.legacy_va_layout in sysctl.conf to make binaries use lega
+cy layout'
+        sysctl:
+          name: "{{item.name}}"
+          value: "{{item.value}}"
+          sysctl_set: yes
+          state: present
+          reload: no
+        with_items:
+         - { name: 'vm.legacy_va_layout', value: '0' }
+      - name: 'disable selinux'
+        selinux: policy=targeted state=permissive
+      - name: crear fichero
+        file:
+          path: "{{ ssh_conf_bkp }}"
+          state: touch
+          owner: root
+          group: root
+          mode: 0644
+      - name: 'backup ssh config'
+        file:
+          src: /etc/ssh/sshd_config
+          dest: "{{ ssh_conf_bkp }}"
+          state: file
+      - name: 'break sshd'
+        lineinfile:
+          path: /etc/ssh/sshd_config
+          regexp: '^KbdInteractiveAuthentication.*'
+          line: 'KbdInteractiveAuthentication yes'
+          state: present
+          create: yes
+      - name: 'Make the machine vulnerable to remote code execution (CVE-2017-5461) nss-util package'
+        yum:
+          name: nss-util-3.21.0-2.2.el7_2
+          state: installed
+        register: nss
+      - name: 'Make the machine vulnerable to remote code execution (CVE-2017-5461) nss package'
+        yum:
+          name: nss-3.21.0-17.el7
+          state: installed
+        register: nss
+      - name: Restart machine
+        shell: "sleep 5 && sudo reboot"
+        async: 10
+        poll: 0
+        when: 
+          nss.changed
+      - name: wait for ssh again available.
+        wait_for_connection:
+          connect_timeout: 30
+          sleep: 10
+          delay: 10
+          timeout: 300
+      - name: run insights
+        shell: insights-client
