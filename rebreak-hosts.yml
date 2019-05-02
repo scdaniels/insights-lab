@@ -51,16 +51,10 @@
           state: installed
         register: nss
       - name: Restart machine
-        shell: "sleep 5 && sudo reboot"
-        async: 10
-        poll: 0
+        reboot:
+          post_reboot_delay: 25
+          reboot_timeout: 200      
         when: 
           nss.changed
-      - name: wait for ssh again available.
-        wait_for_connection:
-          connect_timeout: 30
-          sleep: 10
-          delay: 10
-          timeout: 300
       - name: run insights
         shell: insights-client
