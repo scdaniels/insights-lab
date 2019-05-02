@@ -53,7 +53,7 @@
       - name: Restart machine
         reboot:
           post_reboot_delay: 25
-          reboot_timeout: 200      
+          reboot_timeout: 400      
         when: 
           nss.changed
       - name: run insights
